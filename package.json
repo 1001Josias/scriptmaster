@@ -4,13 +4,22 @@
   "packageManager": "pnpm@10.13.1",
   "scripts": {
     "build": "turbo build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck",
     "dev": "turbo dev",
-    "lint": "turbo lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
     "test": "turbo test",
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
     "turbo": "^2.5.5",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0"
   }
 }
