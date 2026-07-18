@@ -38,3 +38,19 @@ export function createLogger(onEntry?: (entry: LogEntry) => void): LoggerLike {
 }
 
 export const Logger = createLogger();
+
+export {
+  SpreadsheetCompatibilityError,
+  UnsupportedSpreadsheetMethodError,
+  createSpreadsheetApp,
+} from './spreadsheet.js';
+export type {
+  CellValue,
+  MatrixValues,
+  RangeLike,
+  RowValues,
+  SheetLike,
+  SheetsApiClient,
+  SpreadsheetAppLike,
+  SpreadsheetLike,
+} from './spreadsheet.js';
