@@ -44,8 +44,8 @@ interface CatalogEntry {
 
 const SERVICE_CATALOG: Readonly<Record<string, CatalogEntry>> = {
   Logger: {
-    status: 'partially_supported',
-    note: 'Recognized. The Node.js compatibility adapter is planned for the MVP.',
+    status: 'supported',
+    note: 'Supported by the @scriptmaster/runtime Logger compatibility adapter.',
   },
   SpreadsheetApp: {
     status: 'partially_supported',
@@ -67,8 +67,8 @@ const SERVICE_CATALOG: Readonly<Record<string, CatalogEntry>> = {
 
 const METHOD_CATALOG: Readonly<Record<string, CatalogEntry>> = {
   'Logger.log': {
-    status: 'partially_supported',
-    note: 'Will be migrated to the ScriptMaster logging compatibility layer.',
+    status: 'supported',
+    note: 'Supported with structured capture and Node.js-compatible value formatting.',
   },
   'SpreadsheetApp.openById': {
     status: 'partially_supported',
