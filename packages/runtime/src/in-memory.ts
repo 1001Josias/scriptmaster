@@ -22,6 +22,16 @@ interface SpreadsheetState {
   sheets: Map<string, SheetState>;
 }
 
+interface InMemoryRangeApi {
+  getValues(): InMemoryMatrix;
+  setValues(values: InMemoryMatrix): InMemoryRangeApi;
+}
+
+interface InMemorySheetApi {
+  getRange(a1Notation: string): GoogleAppsScript.Spreadsheet.Range;
+  appendRow(rowContents: InMemoryCellValue[]): InMemorySheetApi;
+}
+
 function cloneMatrix(values: readonly (readonly InMemoryCellValue[])[]): InMemoryMatrix {
   return values.map((row) => [...row]);
 }
@@ -84,7 +94,7 @@ function setCell(
 
 function createRange(state: SheetState, notation: string): GoogleAppsScript.Spreadsheet.Range {
   const parsed = parseA1Notation(notation);
-  const range = {
+  const range: InMemoryRangeApi = {
     getValues(): InMemoryMatrix {
       ensureSize(
         state,
@@ -99,7 +109,7 @@ function createRange(state: SheetState, notation: string): GoogleAppsScript.Spre
       );
     },
 
-    setValues(values: InMemoryMatrix): typeof range {
+    setValues(values: InMemoryMatrix): InMemoryRangeApi {
       if (
         values.length !== parsed.rowCount ||
         values.some((row) => row.length !== parsed.columnCount)
@@ -134,12 +144,12 @@ function createRange(state: SheetState, notation: string): GoogleAppsScript.Spre
 }
 
 function createSheet(state: SheetState): GoogleAppsScript.Spreadsheet.Sheet {
-  const sheet = {
+  const sheet: InMemorySheetApi = {
     getRange(a1Notation: string): GoogleAppsScript.Spreadsheet.Range {
       return createRange(state, a1Notation);
     },
 
-    appendRow(rowContents: InMemoryCellValue[]): typeof sheet {
+    appendRow(rowContents: InMemoryCellValue[]): InMemorySheetApi {
       state.values.push([...rowContents]);
       return sheet;
     },
