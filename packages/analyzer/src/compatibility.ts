@@ -105,19 +105,18 @@ const TRIGGER_ENTRY: CatalogEntry = {
 function catalogEntryFor(symbol: DetectedSymbol): CatalogEntry | undefined {
   if (symbol.kind === 'trigger') return TRIGGER_ENTRY;
   if (symbol.kind === 'service') return SERVICE_CATALOG[symbol.name];
+  if (!symbol.service) return undefined;
 
-  if (symbol.service) {
-    const typedKey = symbol.receiverType
-      ? `${symbol.service}.${symbol.receiverType}.${symbol.name}`
-      : undefined;
-    return (
-      (typedKey ? METHOD_CATALOG[typedKey] : undefined) ??
-      METHOD_CATALOG[`${symbol.service}.${symbol.name}`] ??
-      SERVICE_CATALOG[symbol.service]
-    );
-  }
+  const typedKey = symbol.receiverType
+    ? `${symbol.service}.${symbol.receiverType}.${symbol.name}`
+    : undefined;
+  const methodEntry =
+    (typedKey ? METHOD_CATALOG[typedKey] : undefined) ??
+    METHOD_CATALOG[`${symbol.service}.${symbol.name}`];
+  if (methodEntry) return methodEntry;
 
-  return undefined;
+  const serviceEntry = SERVICE_CATALOG[symbol.service];
+  return serviceEntry?.status === 'unsupported' ? serviceEntry : undefined;
 }
 
 function toCompatibilityItem(symbol: DetectedSymbol): CompatibilityItem {
