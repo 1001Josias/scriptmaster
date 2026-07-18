@@ -33,22 +33,25 @@ describe('generateNodeProject', () => {
     expect(entry).toContain('export { Logger, main };');
   });
 
-  it('injects SpreadsheetApp configuration and exposes entry functions from createScript', () => {
-    const source = `async function main() {
+  it('binds SpreadsheetApp through gas-fakes without rewriting synchronous GAS calls', () => {
+    const source = `function main() {
   const spreadsheet = SpreadsheetApp.openById('sheet-id');
-  const sheet = await spreadsheet.getSheetByName('Data');
-  await sheet?.appendRow(['value']);
+  const sheet = spreadsheet.getSheetByName('Data');
+  sheet?.appendRow(['value']);
 }`;
     const project = generateNodeProject({ source, report: reportFor(source) });
     const entry = project.files.find((file) => file.path === 'src/index.ts')?.content;
+    const tsconfig = project.files.find((file) => file.path === 'tsconfig.json')?.content;
 
     expect(project.entryFunctions).toEqual(['main']);
-    expect(entry).toContain('sheetsClient: runtime.SheetsApiClient;');
     expect(entry).toContain(
-      'const SpreadsheetApp = runtime.createSpreadsheetApp(configuration.sheetsClient);',
+      'await runtime.createRuntimeBindings({ backend: runtime.gasFakesBackend, services: ["SpreadsheetApp"] })',
     );
-    expect(entry).toContain("SpreadsheetApp.openById('sheet-id')");
-    expect(entry).toContain('    main,');
+    expect(entry).toContain('const SpreadsheetApp = gas.SpreadsheetApp!;');
+    expect(entry).toContain("spreadsheet.getSheetByName('Data')");
+    expect(entry).not.toContain('sheetsClient');
+    expect(entry).toContain('export { SpreadsheetApp, main };');
+    expect(tsconfig).toContain('google-apps-script');
   });
 
   it('blocks unsupported and unknown APIs with actionable locations', () => {
