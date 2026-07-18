@@ -38,10 +38,15 @@ function parseA1Notation(notation: string): ParsedRange {
   const match = /^([A-Za-z]+)(\d+)(?::([A-Za-z]+)(\d+))?$/.exec(notation.trim());
   if (!match) throw new Error(`Unsupported A1 notation: ${notation}`);
 
-  const startColumn = columnToIndex(match[1]);
-  const startRow = Number(match[2]) - 1;
-  const endColumn = match[3] ? columnToIndex(match[3]) : startColumn;
-  const endRow = match[4] ? Number(match[4]) - 1 : startRow;
+  const [, startColumnName, startRowNumber, endColumnName, endRowNumber] = match;
+  if (!startColumnName || !startRowNumber) {
+    throw new Error(`Unsupported A1 notation: ${notation}`);
+  }
+
+  const startColumn = columnToIndex(startColumnName);
+  const startRow = Number(startRowNumber) - 1;
+  const endColumn = endColumnName ? columnToIndex(endColumnName) : startColumn;
+  const endRow = endRowNumber ? Number(endRowNumber) - 1 : startRow;
 
   if (startRow < 0 || endRow < startRow || endColumn < startColumn) {
     throw new Error(`Invalid A1 notation: ${notation}`);
@@ -62,11 +67,25 @@ function ensureSize(state: SheetState, rowCount: number, columnCount: number): v
   }
 }
 
+function cellAt(state: SheetState, row: number, column: number): InMemoryCellValue {
+  return state.values[row]?.[column] ?? '';
+}
+
+function setCell(
+  state: SheetState,
+  row: number,
+  column: number,
+  value: InMemoryCellValue,
+): void {
+  const targetRow = state.values[row];
+  if (!targetRow) throw new Error(`In-memory row ${row + 1} was not allocated.`);
+  targetRow[column] = value;
+}
+
 function createRange(state: SheetState, notation: string): GoogleAppsScript.Spreadsheet.Range {
   const parsed = parseA1Notation(notation);
-
-  return {
-    getValues(): Object[][] {
+  const range = {
+    getValues(): InMemoryMatrix {
       ensureSize(
         state,
         parsed.startRow + parsed.rowCount,
@@ -74,15 +93,13 @@ function createRange(state: SheetState, notation: string): GoogleAppsScript.Spre
       );
 
       return Array.from({ length: parsed.rowCount }, (_, rowOffset) =>
-        Array.from(
-          { length: parsed.columnCount },
-          (_, columnOffset) =>
-            state.values[parsed.startRow + rowOffset][parsed.startColumn + columnOffset],
+        Array.from({ length: parsed.columnCount }, (_, columnOffset) =>
+          cellAt(state, parsed.startRow + rowOffset, parsed.startColumn + columnOffset),
         ),
       );
     },
 
-    setValues(values: Object[][]): GoogleAppsScript.Spreadsheet.Range {
+    setValues(values: InMemoryMatrix): typeof range {
       if (
         values.length !== parsed.rowCount ||
         values.some((row) => row.length !== parsed.columnCount)
@@ -100,26 +117,35 @@ function createRange(state: SheetState, notation: string): GoogleAppsScript.Spre
 
       values.forEach((row, rowOffset) => {
         row.forEach((value, columnOffset) => {
-          state.values[parsed.startRow + rowOffset][parsed.startColumn + columnOffset] = value;
+          setCell(
+            state,
+            parsed.startRow + rowOffset,
+            parsed.startColumn + columnOffset,
+            value,
+          );
         });
       });
 
-      return this;
+      return range;
     },
-  } as unknown as GoogleAppsScript.Spreadsheet.Range;
+  };
+
+  return range as unknown as GoogleAppsScript.Spreadsheet.Range;
 }
 
 function createSheet(state: SheetState): GoogleAppsScript.Spreadsheet.Sheet {
-  return {
+  const sheet = {
     getRange(a1Notation: string): GoogleAppsScript.Spreadsheet.Range {
       return createRange(state, a1Notation);
     },
 
-    appendRow(rowContents: Object[]): GoogleAppsScript.Spreadsheet.Sheet {
+    appendRow(rowContents: InMemoryCellValue[]): typeof sheet {
       state.values.push([...rowContents]);
-      return this;
+      return sheet;
     },
-  } as unknown as GoogleAppsScript.Spreadsheet.Sheet;
+  };
+
+  return sheet as unknown as GoogleAppsScript.Spreadsheet.Sheet;
 }
 
 export class InMemoryRuntimeBackend implements RuntimeBackend {
@@ -146,14 +172,12 @@ export class InMemoryRuntimeBackend implements RuntimeBackend {
   }
 
   values(values: readonly (readonly InMemoryCellValue[])[]): this {
-    const sheet = this.selectedSheet();
-    sheet.values = cloneMatrix(values);
+    this.selectedSheet().values = cloneMatrix(values);
     return this;
   }
 
   getValues(spreadsheetId: string, sheetName: string): InMemoryMatrix {
-    const spreadsheet = this.spreadsheets.get(spreadsheetId);
-    const sheet = spreadsheet?.sheets.get(sheetName);
+    const sheet = this.spreadsheets.get(spreadsheetId)?.sheets.get(sheetName);
     if (!sheet) throw new Error(`Unknown in-memory sheet: ${spreadsheetId}/${sheetName}`);
     return cloneMatrix(sheet.values);
   }
@@ -185,7 +209,9 @@ export class InMemoryRuntimeBackend implements RuntimeBackend {
     if (!this.selectedSpreadsheetId) {
       throw new Error('Call spreadsheet(id) before configuring a sheet.');
     }
-    return this.spreadsheets.get(this.selectedSpreadsheetId)!;
+    const spreadsheet = this.spreadsheets.get(this.selectedSpreadsheetId);
+    if (!spreadsheet) throw new Error(`Unknown in-memory spreadsheet: ${this.selectedSpreadsheetId}`);
+    return spreadsheet;
   }
 
   private selectedSheet(): SheetState {
@@ -193,7 +219,9 @@ export class InMemoryRuntimeBackend implements RuntimeBackend {
     if (!this.selectedSheetName) {
       throw new Error('Call sheet(name) before configuring values.');
     }
-    return spreadsheet.sheets.get(this.selectedSheetName)!;
+    const sheet = spreadsheet.sheets.get(this.selectedSheetName);
+    if (!sheet) throw new Error(`Unknown in-memory sheet: ${this.selectedSheetName}`);
+    return sheet;
   }
 }
 
