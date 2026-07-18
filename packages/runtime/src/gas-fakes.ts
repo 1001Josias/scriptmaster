@@ -9,8 +9,6 @@ const SUPPORTED_GLOBALS = [
   'ScriptApp',
 ] as const;
 
-type SupportedGlobal = (typeof SUPPORTED_GLOBALS)[number];
-
 type GasFakesLoader = () => Promise<unknown>;
 
 export interface CreateGasFakesBackendOptions {
@@ -41,7 +39,7 @@ export function createGasFakesBackend(
 
       for (const service of SUPPORTED_GLOBALS) {
         if (requested.has(service) && globalObject[service] !== undefined) {
-          bindings[service] = globalObject[service] as AppsScriptRuntimeBindings[SupportedGlobal];
+          (bindings as Record<string, unknown>)[service] = globalObject[service];
         }
       }
 
