@@ -13,12 +13,14 @@ describe('generateCompatibilityReport', () => {
     const report = generateCompatibilityReport(analysis);
 
     expect(report.schemaVersion).toBe(1);
-    expect(report.items.map(({ kind, name, service, status }) => ({
-      kind,
-      name,
-      ...(service ? { service } : {}),
-      status,
-    }))).toEqual([
+    expect(
+      report.items.map(({ kind, name, service, status }) => ({
+        kind,
+        name,
+        ...(service ? { service } : {}),
+        status,
+      })),
+    ).toEqual([
       { kind: 'trigger', name: 'onOpen', status: 'partially_supported' },
       { kind: 'service', name: 'SpreadsheetApp', status: 'partially_supported' },
       {
