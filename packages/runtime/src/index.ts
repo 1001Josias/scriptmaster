@@ -48,6 +48,8 @@ export type {
 } from './backend.js';
 export { createGasFakesBackend, gasFakesBackend } from './gas-fakes.js';
 export type { CreateGasFakesBackendOptions } from './gas-fakes.js';
+export { InMemoryRuntimeBackend, createInMemoryRuntimeBackend } from './in-memory.js';
+export type { InMemoryCellValue, InMemoryMatrix } from './in-memory.js';
 
 export {
   SpreadsheetCompatibilityError,
