@@ -164,3 +164,11 @@ export function analyzeAppsScript(source: string, fileName = 'script.ts'): Analy
 
   return { symbols, diagnostics };
 }
+
+export {
+  generateCompatibilityReport,
+  type CompatibilityItem,
+  type CompatibilityReport,
+  type CompatibilityStatus,
+  type CompatibilitySummary,
+} from './compatibility.js';
