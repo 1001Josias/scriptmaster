@@ -16,6 +16,7 @@ export interface CompatibilityItem {
   kind: SymbolKind;
   name: string;
   service?: string;
+  receiverType?: string;
   status: CompatibilityStatus;
   location: SourceLocation;
   note: string;
@@ -49,7 +50,7 @@ const SERVICE_CATALOG: Readonly<Record<string, CatalogEntry>> = {
   },
   SpreadsheetApp: {
     status: 'supported',
-    note: 'Supported by the injected Google Sheets API compatibility adapter for the MVP surface.',
+    note: 'Supported by the configured SpreadsheetApp runtime backend for the MVP surface.',
   },
   DriveApp: {
     status: 'unsupported',
@@ -72,7 +73,27 @@ const METHOD_CATALOG: Readonly<Record<string, CatalogEntry>> = {
   },
   'SpreadsheetApp.openById': {
     status: 'supported',
-    note: 'Supported through an injected Google Sheets API client; authentication stays in the executor.',
+    note: 'Supported by the configured runtime backend; authentication remains executor-owned.',
+  },
+  'SpreadsheetApp.Spreadsheet.getSheetByName': {
+    status: 'supported',
+    note: 'Supported by the SpreadsheetApp MVP runtime surface.',
+  },
+  'SpreadsheetApp.Sheet.getRange': {
+    status: 'supported',
+    note: 'Supported for A1 notation by the SpreadsheetApp MVP runtime surface.',
+  },
+  'SpreadsheetApp.Range.getValues': {
+    status: 'supported',
+    note: 'Supported by the SpreadsheetApp MVP runtime surface.',
+  },
+  'SpreadsheetApp.Range.setValues': {
+    status: 'supported',
+    note: 'Supported by the SpreadsheetApp MVP runtime surface.',
+  },
+  'SpreadsheetApp.Sheet.appendRow': {
+    status: 'supported',
+    note: 'Supported by the SpreadsheetApp MVP runtime surface.',
   },
 };
 
@@ -82,16 +103,18 @@ const TRIGGER_ENTRY: CatalogEntry = {
 };
 
 function catalogEntryFor(symbol: DetectedSymbol): CatalogEntry | undefined {
-  if (symbol.kind === 'trigger') {
-    return TRIGGER_ENTRY;
-  }
-
-  if (symbol.kind === 'service') {
-    return SERVICE_CATALOG[symbol.name];
-  }
+  if (symbol.kind === 'trigger') return TRIGGER_ENTRY;
+  if (symbol.kind === 'service') return SERVICE_CATALOG[symbol.name];
 
   if (symbol.service) {
-    return METHOD_CATALOG[`${symbol.service}.${symbol.name}`] ?? SERVICE_CATALOG[symbol.service];
+    const typedKey = symbol.receiverType
+      ? `${symbol.service}.${symbol.receiverType}.${symbol.name}`
+      : undefined;
+    return (
+      (typedKey ? METHOD_CATALOG[typedKey] : undefined) ??
+      METHOD_CATALOG[`${symbol.service}.${symbol.name}`] ??
+      SERVICE_CATALOG[symbol.service]
+    );
   }
 
   return undefined;
@@ -99,12 +122,16 @@ function catalogEntryFor(symbol: DetectedSymbol): CatalogEntry | undefined {
 
 function toCompatibilityItem(symbol: DetectedSymbol): CompatibilityItem {
   const entry = catalogEntryFor(symbol);
+  const context = {
+    ...(symbol.service ? { service: symbol.service } : {}),
+    ...(symbol.receiverType ? { receiverType: symbol.receiverType } : {}),
+  };
 
   if (!entry) {
     return {
       kind: symbol.kind,
       name: symbol.name,
-      ...(symbol.service ? { service: symbol.service } : {}),
+      ...context,
       status: 'unknown',
       location: symbol.location,
       note: 'No compatibility information is available for this symbol.',
@@ -114,7 +141,7 @@ function toCompatibilityItem(symbol: DetectedSymbol): CompatibilityItem {
   return {
     kind: symbol.kind,
     name: symbol.name,
-    ...(symbol.service ? { service: symbol.service } : {}),
+    ...context,
     status: entry.status,
     location: symbol.location,
     note: entry.note,
@@ -132,15 +159,10 @@ function summarize(items: CompatibilityItem[]): CompatibilitySummary {
   };
 
   for (const item of items) {
-    if (item.status === 'supported') {
-      summary.supported += 1;
-    } else if (item.status === 'partially_supported') {
-      summary.partiallySupported += 1;
-    } else if (item.status === 'unsupported') {
-      summary.unsupported += 1;
-    } else {
-      summary.unknown += 1;
-    }
+    if (item.status === 'supported') summary.supported += 1;
+    else if (item.status === 'partially_supported') summary.partiallySupported += 1;
+    else if (item.status === 'unsupported') summary.unsupported += 1;
+    else summary.unknown += 1;
   }
 
   if (summary.total > 0) {
