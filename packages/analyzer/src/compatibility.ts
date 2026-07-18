@@ -48,8 +48,8 @@ const SERVICE_CATALOG: Readonly<Record<string, CatalogEntry>> = {
     note: 'Supported by the @scriptmaster/runtime Logger compatibility adapter.',
   },
   SpreadsheetApp: {
-    status: 'partially_supported',
-    note: 'Recognized. Initial migration support will use the Google Sheets API.',
+    status: 'supported',
+    note: 'Supported by the injected Google Sheets API compatibility adapter for the MVP surface.',
   },
   DriveApp: {
     status: 'unsupported',
@@ -71,8 +71,8 @@ const METHOD_CATALOG: Readonly<Record<string, CatalogEntry>> = {
     note: 'Supported with structured capture and Node.js-compatible value formatting.',
   },
   'SpreadsheetApp.openById': {
-    status: 'partially_supported',
-    note: 'Will be migrated to the Google Sheets API using configured credentials.',
+    status: 'supported',
+    note: 'Supported through an injected Google Sheets API client; authentication stays in the executor.',
   },
 };
 
