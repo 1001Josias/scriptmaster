@@ -30,6 +30,18 @@ const TRIGGER_FUNCTIONS = new Set([
   'onOpen',
 ]);
 
+interface ReceiverContext {
+  service: string;
+  type: string;
+}
+
+const METHOD_RETURN_TYPES: Readonly<Record<string, string>> = {
+  'SpreadsheetApp.service.openById': 'Spreadsheet',
+  'SpreadsheetApp.Spreadsheet.getSheetByName': 'Sheet',
+  'SpreadsheetApp.Sheet.getRange': 'Range',
+  'SpreadsheetApp.Sheet.appendRow': 'Sheet',
+};
+
 export type SymbolKind = 'service' | 'method' | 'trigger';
 
 export interface SourceLocation {
@@ -41,6 +53,7 @@ export interface DetectedSymbol {
   kind: SymbolKind;
   name: string;
   service?: string;
+  receiverType?: string;
   supported: boolean;
   location: SourceLocation;
 }
@@ -103,6 +116,10 @@ function isAppsScriptServiceName(name: string): boolean {
   return KNOWN_SERVICES.has(name) || name.endsWith('App');
 }
 
+function returnTypeFor(context: ReceiverContext, method: string): string | undefined {
+  return METHOD_RETURN_TYPES[`${context.service}.${context.type}.${method}`];
+}
+
 export function analyzeAppsScript(source: string, fileName = 'script.ts'): AnalysisResult {
   const sourceFile = ts.createSourceFile(
     fileName,
@@ -113,9 +130,32 @@ export function analyzeAppsScript(source: string, fileName = 'script.ts'): Analy
   );
   const diagnostics = collectDiagnostics(source, fileName);
   const symbols: DetectedSymbol[] = [];
+  const variables = new Map<string, ReceiverContext>();
 
   function addSymbol(symbol: DetectedSymbol): void {
     symbols.push(symbol);
+  }
+
+  function resolveExpression(expression: ts.Expression): ReceiverContext | undefined {
+    if (ts.isIdentifier(expression)) {
+      if (isAppsScriptServiceName(expression.text)) {
+        return { service: expression.text, type: 'service' };
+      }
+      return variables.get(expression.text);
+    }
+
+    if (ts.isParenthesizedExpression(expression)) {
+      return resolveExpression(expression.expression);
+    }
+
+    if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression)) {
+      const receiver = resolveExpression(expression.expression.expression);
+      if (!receiver) return undefined;
+      const returnType = returnTypeFor(receiver, expression.expression.name.text);
+      return returnType ? { service: receiver.service, type: returnType } : undefined;
+    }
+
+    return undefined;
   }
 
   function visit(node: ts.Node): void {
@@ -128,22 +168,34 @@ export function analyzeAppsScript(source: string, fileName = 'script.ts'): Analy
       });
     }
 
-    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
-      const service = node.expression.text;
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const context = resolveExpression(node.initializer);
+      if (context) variables.set(node.name.text, context);
+    }
 
-      if (isAppsScriptServiceName(service)) {
-        addSymbol({
-          kind: 'service',
-          name: service,
-          supported: KNOWN_SERVICES.has(service),
-          location: toLocation(sourceFile, node.expression.getStart(sourceFile)),
-        });
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      const receiver = resolveExpression(node.expression.expression);
+      if (receiver) {
+        if (receiver.type === 'service') {
+          addSymbol({
+            kind: 'service',
+            name: receiver.service,
+            supported: KNOWN_SERVICES.has(receiver.service),
+            location: toLocation(sourceFile, node.expression.expression.getStart(sourceFile)),
+          });
+        }
+
         addSymbol({
           kind: 'method',
-          name: node.name.text,
-          service,
-          supported: KNOWN_SERVICES.has(service),
-          location: toLocation(sourceFile, node.name.getStart(sourceFile)),
+          name: node.expression.name.text,
+          service: receiver.service,
+          ...(receiver.type === 'service' ? {} : { receiverType: receiver.type }),
+          supported: KNOWN_SERVICES.has(receiver.service),
+          location: toLocation(sourceFile, node.expression.name.getStart(sourceFile)),
         });
       }
     }
