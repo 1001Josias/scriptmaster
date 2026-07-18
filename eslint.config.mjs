@@ -8,8 +8,18 @@ export default tseslint.config(
     ignores: ['**/dist/**', '**/coverage/**', '**/.turbo/**', '**/node_modules/**'],
   },
   eslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
   {
+    files: ['**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  ...tseslint.configs.recommendedTypeChecked.map((config) => ({
+    ...config,
+    files: ['**/*.{ts,tsx,mts,cts}'],
+  })),
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
     languageOptions: {
       globals: globals.node,
       parserOptions: {
