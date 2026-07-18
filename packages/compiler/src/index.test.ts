@@ -9,7 +9,7 @@ function reportFor(source: string) {
 }
 
 describe('generateNodeProject', () => {
-  it('generates a deterministic Logger project while preserving user source', () => {
+  it('generates a deterministic Logger project while preserving and exporting user source', () => {
     const source = `function main() {
   Logger.log('hello');
 }`;
@@ -20,19 +20,20 @@ describe('generateNodeProject', () => {
 
     expect(first).toEqual(second);
     expect(first.name).toBe('my-gas-script');
+    expect(first.entryFunctions).toEqual(['main']);
     expect(first.files.map((file) => file.path)).toEqual([
       'package.json',
       'scriptmaster-report.json',
       'src/index.ts',
       'tsconfig.json',
     ]);
-    expect(first.files.find((file) => file.path === 'src/index.ts')?.content).toContain(source);
-    expect(first.files.find((file) => file.path === 'src/index.ts')?.content).toContain(
-      'const Logger = runtime.Logger;',
-    );
+    const entry = first.files.find((file) => file.path === 'src/index.ts')?.content;
+    expect(entry).toContain(source);
+    expect(entry).toContain('const Logger = runtime.Logger;');
+    expect(entry).toContain('export { Logger, main };');
   });
 
-  it('injects SpreadsheetApp configuration without changing GAS calls', () => {
+  it('injects SpreadsheetApp configuration and exposes entry functions from createScript', () => {
     const source = `async function main() {
   const spreadsheet = SpreadsheetApp.openById('sheet-id');
   const sheet = await spreadsheet.getSheetByName('Data');
@@ -41,11 +42,13 @@ describe('generateNodeProject', () => {
     const project = generateNodeProject({ source, report: reportFor(source) });
     const entry = project.files.find((file) => file.path === 'src/index.ts')?.content;
 
+    expect(project.entryFunctions).toEqual(['main']);
     expect(entry).toContain('sheetsClient: runtime.SheetsApiClient;');
     expect(entry).toContain(
       'const SpreadsheetApp = runtime.createSpreadsheetApp(configuration.sheetsClient);',
     );
     expect(entry).toContain("SpreadsheetApp.openById('sheet-id')");
+    expect(entry).toContain('    main,');
   });
 
   it('blocks unsupported and unknown APIs with actionable locations', () => {
