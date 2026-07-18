@@ -1,0 +1,14 @@
+{
+  "name": "@scriptmaster/executor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@scriptmaster/runtime": "workspace:*"
+  }
+}
