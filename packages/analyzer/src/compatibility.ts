@@ -4,7 +4,7 @@ import type {
   DetectedSymbol,
   SourceLocation,
   SymbolKind,
-} from './index.js';
+} from './types.js';
 
 export type CompatibilityStatus =
   | 'supported'
