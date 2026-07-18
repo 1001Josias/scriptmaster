@@ -22,12 +22,12 @@ describe('generateCompatibilityReport', () => {
       })),
     ).toEqual([
       { kind: 'trigger', name: 'onOpen', status: 'partially_supported' },
-      { kind: 'service', name: 'SpreadsheetApp', status: 'partially_supported' },
+      { kind: 'service', name: 'SpreadsheetApp', status: 'supported' },
       {
         kind: 'method',
         name: 'openById',
         service: 'SpreadsheetApp',
-        status: 'partially_supported',
+        status: 'supported',
       },
       { kind: 'service', name: 'DriveApp', status: 'unsupported' },
       { kind: 'method', name: 'getFiles', service: 'DriveApp', status: 'unsupported' },
@@ -36,11 +36,11 @@ describe('generateCompatibilityReport', () => {
     ]);
     expect(report.summary).toEqual({
       total: 7,
-      supported: 0,
-      partiallySupported: 3,
+      supported: 2,
+      partiallySupported: 1,
       unsupported: 2,
       unknown: 2,
-      score: 21,
+      score: 36,
     });
   });
 
