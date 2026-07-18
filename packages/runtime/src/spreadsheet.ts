@@ -94,6 +94,10 @@ function normalizeError(operation: string, error: unknown): SpreadsheetCompatibi
 function withUnsupportedMethods<T extends object>(target: T, typeName: string): T {
   return new Proxy(target, {
     get(current, property, receiver) {
+      if (property === 'then') {
+        return undefined;
+      }
+
       if (typeof property === 'string' && !(property in current)) {
         return () => {
           throw new UnsupportedSpreadsheetMethodError(`${typeName}.${property}`);
