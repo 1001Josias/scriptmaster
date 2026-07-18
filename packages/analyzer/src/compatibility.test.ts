@@ -51,7 +51,7 @@ describe('generateCompatibilityReport', () => {
       expect.objectContaining({
         kind: 'service',
         name: 'Logger',
-        status: 'partially_supported',
+        status: 'supported',
         location: { line: 1, column: 1 },
         note: expect.any(String),
       }),
@@ -59,11 +59,19 @@ describe('generateCompatibilityReport', () => {
         kind: 'method',
         name: 'log',
         service: 'Logger',
-        status: 'partially_supported',
+        status: 'supported',
         location: { line: 1, column: 8 },
         note: expect.any(String),
       }),
     ]);
+    expect(report.summary).toEqual({
+      total: 2,
+      supported: 2,
+      partiallySupported: 0,
+      unsupported: 0,
+      unknown: 0,
+      score: 100,
+    });
   });
 
   it('returns a stable empty summary and carries parser diagnostics', () => {
