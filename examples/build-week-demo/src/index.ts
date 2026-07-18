@@ -4,9 +4,9 @@ import { generateNodeProject } from '@scriptmaster/compiler';
 import { executeEntry, type ExecutableScriptModule } from '@scriptmaster/executor';
 import {
   Logger,
+  createInMemoryRuntimeBackend,
   createRuntimeBindings,
   type AppsScriptRuntimeBindings,
-  type RuntimeBackend,
 } from '@scriptmaster/runtime';
 
 const SOURCE = `function onOpen() {
@@ -37,43 +37,6 @@ const suggestionProvider: MigrationSuggestionProvider = {
     };
   },
 };
-
-function createDemoBackend(): RuntimeBackend {
-  const rows = [
-    ['order_id', 'amount'],
-    ['A-100', 120],
-    ['A-101', 80],
-  ];
-
-  const range = {
-    getValues: () => rows.map((row) => [...row]),
-  } as unknown as GoogleAppsScript.Spreadsheet.Range;
-
-  const sheet = {
-    getRange: (a1Notation: string) => {
-      if (a1Notation !== 'A1:B3') throw new Error(`Unexpected demo range: ${a1Notation}`);
-      return range;
-    },
-  } as unknown as GoogleAppsScript.Spreadsheet.Sheet;
-
-  const spreadsheet = {
-    getSheetByName: (name: string) => (name === 'Orders' ? sheet : null),
-  } as unknown as GoogleAppsScript.Spreadsheet.Spreadsheet;
-
-  const SpreadsheetApp = {
-    openById: (id: string) => {
-      if (id !== 'demo-spreadsheet') throw new Error(`Unexpected demo spreadsheet: ${id}`);
-      return spreadsheet;
-    },
-  } as unknown as GoogleAppsScript.Spreadsheet.SpreadsheetApp;
-
-  return {
-    name: 'demo-memory',
-    async initialize(): Promise<AppsScriptRuntimeBindings> {
-      return { SpreadsheetApp };
-    },
-  };
-}
 
 function instantiateSource(bindings: AppsScriptRuntimeBindings): ExecutableScriptModule {
   const factory = new Function(
@@ -112,8 +75,16 @@ async function run(): Promise<void> {
   });
   console.log('\n4. GENERATED NODE PROJECT\n', project.files.map((file) => file.path).join('\n'));
 
+  const backend = createInMemoryRuntimeBackend()
+    .spreadsheet('demo-spreadsheet')
+    .sheet('Orders')
+    .values([
+      ['order_id', 'amount'],
+      ['A-100', 120],
+      ['A-101', 80],
+    ]);
   const bindings = await createRuntimeBindings({
-    backend: createDemoBackend(),
+    backend,
     services: ['SpreadsheetApp'],
   });
   const module = instantiateSource(bindings);
