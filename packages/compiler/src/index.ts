@@ -35,6 +35,11 @@ export class CompilationBlockedError extends Error {
   }
 }
 
+interface RuntimeBinding {
+  name: string;
+  declaration: string;
+}
+
 function sanitizePackageName(value: string): string {
   const sanitized = value
     .trim()
@@ -58,20 +63,22 @@ function blockingDiagnostics(report: CompatibilityReport): CompilationDiagnostic
     }));
 }
 
-function runtimeBindings(report: CompatibilityReport): string[] {
+function runtimeBindings(report: CompatibilityReport): RuntimeBinding[] {
   const services = new Set(
     report.items.filter((item) => item.kind === 'service').map((item) => item.name),
   );
-  const bindings: string[] = [];
+  const bindings: RuntimeBinding[] = [];
 
   if (services.has('Logger')) {
-    bindings.push('const Logger = runtime.Logger;');
+    bindings.push({ name: 'Logger', declaration: 'const Logger = runtime.Logger;' });
   }
 
   if (services.has('SpreadsheetApp')) {
-    bindings.push(
-      "const SpreadsheetApp = runtime.createSpreadsheetApp(configuration.sheetsClient);",
-    );
+    bindings.push({
+      name: 'SpreadsheetApp',
+      declaration:
+        'const SpreadsheetApp = runtime.createSpreadsheetApp(configuration.sheetsClient);',
+    });
   }
 
   return bindings;
@@ -79,41 +86,49 @@ function runtimeBindings(report: CompatibilityReport): string[] {
 
 function generateEntrySource(source: string, report: CompatibilityReport): string {
   const bindings = runtimeBindings(report);
-  const usesSpreadsheet = bindings.some((binding) => binding.includes('SpreadsheetApp'));
-
+  const usesSpreadsheet = bindings.some((binding) => binding.name === 'SpreadsheetApp');
   const imports = "import * as runtime from '@scriptmaster/runtime';";
-  const configuration = usesSpreadsheet
-    ? [
-        '',
-        'export interface ScriptMasterConfiguration {',
-        '  sheetsClient: runtime.SheetsApiClient;',
-        '}',
-        '',
-        'export function createScript(configuration: ScriptMasterConfiguration) {',
-        ...bindings.map((binding) => `  ${binding}`),
-        '',
-        source
-          .trim()
-          .split('\n')
-          .map((line) => `  ${line}`)
-          .join('\n'),
-        '',
-        '  return {',
-        '    Logger,',
-        '    SpreadsheetApp,',
-        '  };',
-        '}',
-      ].join('\n')
-    : [
-        '',
-        ...bindings,
-        '',
-        source.trim(),
-        '',
-        'export { Logger };',
-      ].join('\n');
 
-  return `${imports}${configuration}\n`;
+  if (usesSpreadsheet) {
+    const returnedBindings = bindings.map((binding) => `    ${binding.name},`);
+
+    return [
+      imports,
+      '',
+      'export interface ScriptMasterConfiguration {',
+      '  sheetsClient: runtime.SheetsApiClient;',
+      '}',
+      '',
+      'export function createScript(configuration: ScriptMasterConfiguration) {',
+      ...bindings.map((binding) => `  ${binding.declaration}`),
+      '',
+      source
+        .trim()
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n'),
+      '',
+      '  return {',
+      ...returnedBindings,
+      '  };',
+      '}',
+      '',
+    ].join('\n');
+  }
+
+  const exportedBindings = bindings.map((binding) => binding.name).join(', ');
+  const exportLine = exportedBindings ? `export { ${exportedBindings} };` : 'export {};';
+
+  return [
+    imports,
+    '',
+    ...bindings.map((binding) => binding.declaration),
+    '',
+    source.trim(),
+    '',
+    exportLine,
+    '',
+  ].join('\n');
 }
 
 function packageJson(name: string): string {
