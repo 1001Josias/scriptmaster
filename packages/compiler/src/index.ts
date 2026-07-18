@@ -9,6 +9,7 @@ export interface GeneratedProject {
   name: string;
   files: GeneratedFile[];
   report: CompatibilityReport;
+  entryFunctions: string[];
 }
 
 export interface GenerateNodeProjectInput {
@@ -84,13 +85,26 @@ function runtimeBindings(report: CompatibilityReport): RuntimeBinding[] {
   return bindings;
 }
 
-function generateEntrySource(source: string, report: CompatibilityReport): string {
+function discoverEntryFunctions(source: string): string[] {
+  const names = new Set<string>();
+  const pattern = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
+  for (const match of source.matchAll(pattern)) {
+    if (match[1]) names.add(match[1]);
+  }
+  return [...names].sort();
+}
+
+function generateEntrySource(
+  source: string,
+  report: CompatibilityReport,
+  entryFunctions: string[],
+): string {
   const bindings = runtimeBindings(report);
   const usesSpreadsheet = bindings.some((binding) => binding.name === 'SpreadsheetApp');
   const imports = "import * as runtime from '@scriptmaster/runtime';";
 
   if (usesSpreadsheet) {
-    const returnedBindings = bindings.map((binding) => `    ${binding.name},`);
+    const returnedNames = [...bindings.map((binding) => binding.name), ...entryFunctions];
 
     return [
       imports,
@@ -109,15 +123,15 @@ function generateEntrySource(source: string, report: CompatibilityReport): strin
         .join('\n'),
       '',
       '  return {',
-      ...returnedBindings,
+      ...returnedNames.map((name) => `    ${name},`),
       '  };',
       '}',
       '',
     ].join('\n');
   }
 
-  const exportedBindings = bindings.map((binding) => binding.name).join(', ');
-  const exportLine = exportedBindings ? `export { ${exportedBindings} };` : 'export {};';
+  const exportedNames = [...bindings.map((binding) => binding.name), ...entryFunctions];
+  const exportLine = exportedNames.length > 0 ? `export { ${exportedNames.join(', ')} };` : 'export {};';
 
   return [
     imports,
@@ -178,10 +192,14 @@ export function generateNodeProject(input: GenerateNodeProjectInput): GeneratedP
   }
 
   const name = sanitizePackageName(input.name ?? 'scriptmaster-project');
+  const entryFunctions = discoverEntryFunctions(input.source);
   const files: GeneratedFile[] = [
     { path: 'package.json', content: packageJson(name) },
     { path: 'tsconfig.json', content: TSCONFIG },
-    { path: 'src/index.ts', content: generateEntrySource(input.source, input.report) },
+    {
+      path: 'src/index.ts',
+      content: generateEntrySource(input.source, input.report, entryFunctions),
+    },
     { path: 'scriptmaster-report.json', content: `${JSON.stringify(input.report, null, 2)}\n` },
   ];
 
@@ -189,5 +207,6 @@ export function generateNodeProject(input: GenerateNodeProjectInput): GeneratedP
     name,
     files: files.sort((left, right) => left.path.localeCompare(right.path)),
     report: input.report,
+    entryFunctions,
   };
 }
