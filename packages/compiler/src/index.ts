@@ -36,11 +36,6 @@ export class CompilationBlockedError extends Error {
   }
 }
 
-interface RuntimeBinding {
-  name: string;
-  declaration: string;
-}
-
 function sanitizePackageName(value: string): string {
   const sanitized = value
     .trim()
@@ -64,25 +59,14 @@ function blockingDiagnostics(report: CompatibilityReport): CompilationDiagnostic
     }));
 }
 
-function runtimeBindings(report: CompatibilityReport): RuntimeBinding[] {
-  const services = new Set(
-    report.items.filter((item) => item.kind === 'service').map((item) => item.name),
-  );
-  const bindings: RuntimeBinding[] = [];
-
-  if (services.has('Logger')) {
-    bindings.push({ name: 'Logger', declaration: 'const Logger = runtime.Logger;' });
-  }
-
-  if (services.has('SpreadsheetApp')) {
-    bindings.push({
-      name: 'SpreadsheetApp',
-      declaration:
-        'const SpreadsheetApp = runtime.createSpreadsheetApp(configuration.sheetsClient);',
-    });
-  }
-
-  return bindings;
+function runtimeServices(report: CompatibilityReport): string[] {
+  return [
+    ...new Set(
+      report.items
+        .filter((item) => item.kind === 'service' && item.name !== 'Logger')
+        .map((item) => item.name),
+    ),
+  ].sort();
 }
 
 function discoverEntryFunctions(source: string): string[] {
@@ -99,44 +83,34 @@ function generateEntrySource(
   report: CompatibilityReport,
   entryFunctions: string[],
 ): string {
-  const bindings = runtimeBindings(report);
-  const usesSpreadsheet = bindings.some((binding) => binding.name === 'SpreadsheetApp');
-  const imports = "import * as runtime from '@scriptmaster/runtime';";
+  const services = runtimeServices(report);
+  const usesLogger = report.items.some(
+    (item) => item.kind === 'service' && item.name === 'Logger',
+  );
+  const declarations: string[] = [];
 
-  if (usesSpreadsheet) {
-    const returnedNames = [...bindings.map((binding) => binding.name), ...entryFunctions];
+  if (usesLogger) declarations.push('const Logger = runtime.Logger;');
 
-    return [
-      imports,
-      '',
-      'export interface ScriptMasterConfiguration {',
-      '  sheetsClient: runtime.SheetsApiClient;',
-      '}',
-      '',
-      'export function createScript(configuration: ScriptMasterConfiguration) {',
-      ...bindings.map((binding) => `  ${binding.declaration}`),
-      '',
-      source
-        .trim()
-        .split('\n')
-        .map((line) => `  ${line}`)
-        .join('\n'),
-      '',
-      '  return {',
-      ...returnedNames.map((name) => `    ${name},`),
-      '  };',
-      '}',
-      '',
-    ].join('\n');
+  if (services.length > 0) {
+    declarations.push(
+      `const gas = await runtime.createRuntimeBindings({ backend: runtime.gasFakesBackend, services: ${JSON.stringify(services)} });`,
+      ...services.map((service) => `const ${service} = gas.${service}!;`),
+    );
   }
 
-  const exportedNames = [...bindings.map((binding) => binding.name), ...entryFunctions];
-  const exportLine = exportedNames.length > 0 ? `export { ${exportedNames.join(', ')} };` : 'export {};';
+  const exportedNames = [
+    ...(usesLogger ? ['Logger'] : []),
+    ...services,
+    ...entryFunctions,
+  ];
+  const exportLine = exportedNames.length > 0
+    ? `export { ${exportedNames.join(', ')} };`
+    : 'export {};';
 
   return [
-    imports,
+    "import * as runtime from '@scriptmaster/runtime';",
     '',
-    ...bindings.map((binding) => binding.declaration),
+    ...declarations,
     '',
     source.trim(),
     '',
@@ -160,6 +134,7 @@ function packageJson(name: string): string {
         '@scriptmaster/runtime': '^0.0.0',
       },
       devDependencies: {
+        '@types/google-apps-script': '^1.0.99',
         typescript: '^5.8.3',
       },
     },
@@ -178,6 +153,7 @@ const TSCONFIG = `${JSON.stringify(
       outDir: 'dist',
       rootDir: 'src',
       skipLibCheck: true,
+      types: ['google-apps-script'],
     },
     include: ['src/**/*.ts'],
   },
