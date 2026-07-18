@@ -54,8 +54,10 @@ describe('in-memory runtime backend', () => {
       ['A-101', 80],
     ]);
 
-    snapshot[1][1] = 999;
-    expect(backend.getValues('orders', 'Orders')[1][1]).toBe(120);
+    const mutableRow = snapshot[1];
+    if (!mutableRow) throw new Error('Expected fixture row to exist.');
+    mutableRow[1] = 999;
+    expect(backend.getValues('orders', 'Orders')[1]?.[1]).toBe(120);
   });
 
   it('rejects invalid ranges and setValues dimensions', async () => {
