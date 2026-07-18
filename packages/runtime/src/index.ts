@@ -39,6 +39,16 @@ export function createLogger(onEntry?: (entry: LogEntry) => void): LoggerLike {
 
 export const Logger = createLogger();
 
+export { createRuntimeBindings } from './backend.js';
+export type {
+  AppsScriptRuntimeBindings,
+  CreateRuntimeBindingsOptions,
+  RuntimeBackend,
+  RuntimeBackendContext,
+} from './backend.js';
+export { createGasFakesBackend, gasFakesBackend } from './gas-fakes.js';
+export type { CreateGasFakesBackendOptions } from './gas-fakes.js';
+
 export {
   SpreadsheetCompatibilityError,
   UnsupportedSpreadsheetMethodError,
