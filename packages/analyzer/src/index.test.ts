@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { analyzeAppsScript } from './index.js';
+import { analyzeAppsScript, generateCompatibilityReport } from './index.js';
 
 describe('analyzeAppsScript', () => {
-  it('detects supported services, methods and trigger functions with locations', () => {
+  it('detects supported services, methods, instance methods and trigger functions', () => {
     const result = analyzeAppsScript(`function onOpen() {
   const sheet = SpreadsheetApp.openById('sheet-id');
   Logger.log(sheet.getName());
@@ -43,7 +43,61 @@ describe('analyzeAppsScript', () => {
         supported: true,
         location: { line: 3, column: 10 },
       },
+      {
+        kind: 'method',
+        name: 'getName',
+        service: 'SpreadsheetApp',
+        receiverType: 'Spreadsheet',
+        supported: true,
+        location: { line: 3, column: 20 },
+      },
     ]);
+  });
+
+  it('resolves chained and assigned SpreadsheetApp receiver types', () => {
+    const result = analyzeAppsScript(`function main() {
+  const spreadsheet = SpreadsheetApp.openById('sheet-id');
+  const sheet = spreadsheet.getSheetByName('Data');
+  const values = sheet.getRange('A1:B2').getValues();
+  sheet.appendRow(['x', 1]);
+  return values;
+}`);
+
+    expect(result.symbols).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'method',
+          name: 'getSheetByName',
+          service: 'SpreadsheetApp',
+          receiverType: 'Spreadsheet',
+        }),
+        expect.objectContaining({
+          kind: 'method',
+          name: 'getRange',
+          service: 'SpreadsheetApp',
+          receiverType: 'Sheet',
+        }),
+        expect.objectContaining({
+          kind: 'method',
+          name: 'getValues',
+          service: 'SpreadsheetApp',
+          receiverType: 'Range',
+        }),
+        expect.objectContaining({
+          kind: 'method',
+          name: 'appendRow',
+          service: 'SpreadsheetApp',
+          receiverType: 'Sheet',
+        }),
+      ]),
+    );
+
+    const report = generateCompatibilityReport(result);
+    for (const method of ['getSheetByName', 'getRange', 'getValues', 'appendRow']) {
+      expect(report.items).toContainEqual(
+        expect.objectContaining({ name: method, status: 'supported' }),
+      );
+    }
   });
 
   it('represents duplicate usages as separate consistently ordered occurrences', () => {
