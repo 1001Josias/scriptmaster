@@ -16,6 +16,7 @@ const SOURCE = `function onOpen() {
 function main() {
   const spreadsheet = SpreadsheetApp.openById('demo-spreadsheet');
   const sheet = spreadsheet.getSheetByName('Orders');
+  if (!sheet) throw new Error('Orders sheet was not found');
   const values = sheet.getRange('A1:B3').getValues();
   const total = values.slice(1).reduce((sum, row) => sum + Number(row[1]), 0);
   Logger.log('Processed %s orders with total %s', values.length - 1, total);
