@@ -44,6 +44,32 @@ describe('generateCompatibilityReport', () => {
     });
   });
 
+  it('emits one service summary while preserving every method occurrence', () => {
+    const report = generateCompatibilityReport(
+      analyzeAppsScript(`Logger.log('first');
+Logger.log('second');`),
+    );
+
+    expect(report.items.filter((item) => item.kind === 'service')).toEqual([
+      expect.objectContaining({
+        name: 'Logger',
+        location: { line: 1, column: 1 },
+      }),
+    ]);
+    expect(report.items.filter((item) => item.kind === 'method')).toEqual([
+      expect.objectContaining({ name: 'log', location: { line: 1, column: 8 } }),
+      expect.objectContaining({ name: 'log', location: { line: 2, column: 8 } }),
+    ]);
+    expect(report.summary).toEqual({
+      total: 3,
+      supported: 3,
+      partiallySupported: 0,
+      unsupported: 0,
+      unknown: 0,
+      score: 100,
+    });
+  });
+
   it('preserves source locations and migration notes', () => {
     const report = generateCompatibilityReport(analyzeAppsScript('Logger.log("hello");'));
 
