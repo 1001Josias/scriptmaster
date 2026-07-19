@@ -13,6 +13,7 @@ describe('generateCompatibilityReport', () => {
     const report = generateCompatibilityReport(analysis);
 
     expect(report.schemaVersion).toBe(1);
+    expect(report.assessment).toEqual({ status: 'complete', scoreReliable: true });
     expect(
       report.items.map(({ kind, name, service, status }) => ({
         kind,
@@ -100,9 +101,10 @@ Logger.log('second');`),
     });
   });
 
-  it('returns a stable empty summary and carries parser diagnostics', () => {
+  it('marks reports with parser errors as blocked and the score as unreliable', () => {
     const report = generateCompatibilityReport(analyzeAppsScript('function broken( {'));
 
+    expect(report.assessment).toEqual({ status: 'blocked', scoreReliable: false });
     expect(report.summary).toEqual({
       total: 0,
       supported: 0,
