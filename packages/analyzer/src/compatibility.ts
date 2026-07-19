@@ -105,18 +105,22 @@ const TRIGGER_ENTRY: CatalogEntry = {
 function catalogEntryFor(symbol: DetectedSymbol): CatalogEntry | undefined {
   if (symbol.kind === 'trigger') return TRIGGER_ENTRY;
   if (symbol.kind === 'service') return SERVICE_CATALOG[symbol.name];
-  if (!symbol.service) return undefined;
 
-  const typedKey = symbol.receiverType
-    ? `${symbol.service}.${symbol.receiverType}.${symbol.name}`
-    : undefined;
-  const methodEntry =
-    (typedKey ? METHOD_CATALOG[typedKey] : undefined) ??
-    METHOD_CATALOG[`${symbol.service}.${symbol.name}`];
-  if (methodEntry) return methodEntry;
+  if (symbol.service) {
+    const typedKey = symbol.receiverType
+      ? `${symbol.service}.${symbol.receiverType}.${symbol.name}`
+      : undefined;
+    const methodEntry =
+      (typedKey ? METHOD_CATALOG[typedKey] : undefined) ??
+      METHOD_CATALOG[`${symbol.service}.${symbol.name}`];
 
-  const serviceEntry = SERVICE_CATALOG[symbol.service];
-  return serviceEntry?.status === 'unsupported' ? serviceEntry : undefined;
+    if (methodEntry) return methodEntry;
+
+    const serviceEntry = SERVICE_CATALOG[symbol.service];
+    return serviceEntry?.status === 'unsupported' ? serviceEntry : undefined;
+  }
+
+  return undefined;
 }
 
 function toCompatibilityItem(symbol: DetectedSymbol): CompatibilityItem {
@@ -147,6 +151,17 @@ function toCompatibilityItem(symbol: DetectedSymbol): CompatibilityItem {
   };
 }
 
+function normalizeSymbols(symbols: readonly DetectedSymbol[]): DetectedSymbol[] {
+  const seenServices = new Set<string>();
+
+  return symbols.filter((symbol) => {
+    if (symbol.kind !== 'service') return true;
+    if (seenServices.has(symbol.name)) return false;
+    seenServices.add(symbol.name);
+    return true;
+  });
+}
+
 function summarize(items: CompatibilityItem[]): CompatibilitySummary {
   const summary: CompatibilitySummary = {
     total: items.length,
@@ -173,7 +188,7 @@ function summarize(items: CompatibilityItem[]): CompatibilitySummary {
 }
 
 export function generateCompatibilityReport(analysis: AnalysisResult): CompatibilityReport {
-  const items = analysis.symbols.map(toCompatibilityItem);
+  const items = normalizeSymbols(analysis.symbols).map(toCompatibilityItem);
 
   return {
     schemaVersion: 1,
