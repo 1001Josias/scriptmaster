@@ -12,6 +12,8 @@ export type CompatibilityStatus =
   | 'unsupported'
   | 'unknown';
 
+export type CompatibilityReportStatus = 'complete' | 'incomplete' | 'blocked';
+
 export interface CompatibilityItem {
   kind: SymbolKind;
   name: string;
@@ -31,8 +33,14 @@ export interface CompatibilitySummary {
   score: number;
 }
 
+export interface CompatibilityAssessment {
+  status: CompatibilityReportStatus;
+  scoreReliable: boolean;
+}
+
 export interface CompatibilityReport {
   schemaVersion: 1;
+  assessment: CompatibilityAssessment;
   summary: CompatibilitySummary;
   items: CompatibilityItem[];
   diagnostics: AnalysisDiagnostic[];
@@ -162,6 +170,16 @@ function normalizeSymbols(symbols: readonly DetectedSymbol[]): DetectedSymbol[] 
   });
 }
 
+function assessDiagnostics(diagnostics: readonly AnalysisDiagnostic[]): CompatibilityAssessment {
+  if (diagnostics.some((diagnostic) => diagnostic.category === 'error')) {
+    return { status: 'blocked', scoreReliable: false };
+  }
+  if (diagnostics.length > 0) {
+    return { status: 'incomplete', scoreReliable: false };
+  }
+  return { status: 'complete', scoreReliable: true };
+}
+
 function summarize(items: CompatibilityItem[]): CompatibilitySummary {
   const summary: CompatibilitySummary = {
     total: items.length,
@@ -192,6 +210,7 @@ export function generateCompatibilityReport(analysis: AnalysisResult): Compatibi
 
   return {
     schemaVersion: 1,
+    assessment: assessDiagnostics(analysis.diagnostics),
     summary: summarize(items),
     items,
     diagnostics: [...analysis.diagnostics],
