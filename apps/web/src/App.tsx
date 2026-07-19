@@ -62,6 +62,14 @@ export function App() {
     editor.setSelectionRange(position, position + item.name.length);
   }
 
+  const reportBadge = report
+    ? report.assessment.scoreReliable
+      ? `${report.summary.score}%`
+      : report.assessment.status === 'blocked'
+        ? 'Blocked'
+        : 'Incomplete'
+    : null;
+
   return (
     <main className="app-shell">
       <header className="hero">
@@ -102,7 +110,14 @@ export function App() {
               <p className="step">02</p>
               <h2>Migration report</h2>
             </div>
-            {report && <div className={`score ${blockingCount ? 'score-blocked' : ''}`}>{report.summary.score}%</div>}
+            {report && (
+              <div
+                className={`score ${blockingCount || !report.assessment.scoreReliable ? 'score-blocked' : ''}`}
+                title={report.assessment.scoreReliable ? 'Compatibility score' : 'Compatibility score is not reliable because parsing did not complete cleanly'}
+              >
+                {reportBadge}
+              </div>
+            )}
           </div>
 
           {!report ? (
@@ -119,8 +134,12 @@ export function App() {
               </div>
 
               {report.diagnostics.length > 0 && (
-                <div className="diagnostics">
-                  <strong>Parser diagnostics</strong>
+                <div className="diagnostics" role={report.assessment.status === 'blocked' ? 'alert' : undefined}>
+                  <strong>
+                    {report.assessment.status === 'blocked'
+                      ? 'Parser errors block a reliable compatibility result'
+                      : 'Parser diagnostics make this report incomplete'}
+                  </strong>
                   {report.diagnostics.map((diagnostic, index) => (
                     <p key={`${diagnostic.code}-${index}`}>{diagnostic.message}</p>
                   ))}
